@@ -4,6 +4,12 @@ namespace GetBestPossibleOrders;
 
 internal class Program
 {
+    enum OrderType
+    {
+        Buy,
+        Sell
+    }
+
     public static void Main(string[] args)
     {
         string orderType = args[0];
@@ -16,13 +22,14 @@ internal class Program
         if (!ReadExchangesFromFiles(files, exchanges)) return;
 
         List<Order> result = new List<Order>();
-        if (orderType == "Buy")
+        if (Enum.TryParse(orderType, out OrderType type))
         {
-            result = GetBestAsksFromBestExchange(exchanges, goalAmount);
+            result = GetBestOrdersFromBestExchange(exchanges, goalAmount, type);
         }
-        
+
         string json = JsonSerializer.Serialize(result);
         Console.WriteLine(json);
+        Console.WriteLine(result.Sum(o => o.Price));
     }
 
     private static bool ValidateArguments(string type, decimal goal, List<string> fileList)
@@ -68,59 +75,65 @@ internal class Program
         return true;
     }
 
-    private static List<Order> GetBestAsksFromBestExchange(List<Exchange> exchanges, decimal goalAmount)
+    private static List<Order> GetBestOrdersFromBestExchange(List<Exchange> exchanges,
+        decimal goalAmount, OrderType orderType)
     {
         List<Order> result = new List<Order>();
-        
+
         foreach (Exchange exchange in exchanges)
         {
-            List<Order> exchangeAsks = new List<Order>();
-            foreach (OrderWrapper wrapper in exchange.OrderBook.Asks)
+            List<Order> exchangeOrders = new List<Order>();
+            if (orderType == OrderType.Buy)
             {
-                exchangeAsks.Add(wrapper.Order);
+                exchangeOrders = exchange.OrderBook.Asks.ConvertAll(a => a.Order);
+                exchangeOrders.Sort((a, b) => a.Price < b.Price ? -1 : a.Price == b.Price ? 0 : 1);
             }
-            exchangeAsks.Sort((a, b) => a.Price < b.Price ? -1 : a.Price == b.Price ? 0 : 1);
+            else if (orderType == OrderType.Sell)
+            {
+                exchangeOrders = exchange.OrderBook.Bids.ConvertAll((b => b.Order));
+                exchangeOrders.Sort((a, b) => a.Price > b.Price ? -1 : a.Price == b.Price ? 0 : 1);
+            }
 
-            List<Order> bestExchangeAsks = GetBestAsksOfOrderList(exchangeAsks, goalAmount);
-            decimal exchangeSum = bestExchangeAsks.Sum(a => a.Price);
+            List<Order> bestExchangeOrders = GetBestOrdersFromList(exchangeOrders, goalAmount);
+            decimal exchangeSum = bestExchangeOrders.Sum(a => a.Price);
             decimal resultSum = result.Sum(a => a.Price);
 
             if (result.Count == 0 || exchangeSum < resultSum)
             {
-                result = bestExchangeAsks;
+                result = bestExchangeOrders;
             }
         }
 
         return result;
     }
 
-    private static List<Order> GetBestAsksOfOrderList(List<Order> orders, decimal goalAmount)
+    private static List<Order> GetBestOrdersFromList(List<Order> orders, decimal goalAmount)
     {
-        List<Order> bestAsks = new List<Order>();
+        List<Order> bestOrders = new List<Order>();
         decimal reachedAmount = 0;
 
-        foreach (Order ask in orders)
+        foreach (Order order in orders)
         {
-            if (reachedAmount + ask.Amount < goalAmount)
+            if (reachedAmount + order.Amount < goalAmount)
             {
-                bestAsks.Add(ask);
-                reachedAmount += ask.Amount;
+                bestOrders.Add(order);
+                reachedAmount += order.Amount;
             }
-            else if (reachedAmount + ask.Amount == goalAmount)
+            else if (reachedAmount + order.Amount == goalAmount)
             {
-                bestAsks.Add(ask);
+                bestOrders.Add(order);
                 break;
             }
-            else if (reachedAmount + ask.Amount > goalAmount)
+            else if (reachedAmount + order.Amount > goalAmount)
             {
                 decimal splittedAmount = goalAmount - reachedAmount;
-                Order splittedAsk = ask;
-                splittedAsk.Amount = splittedAmount;
-                bestAsks.Add(splittedAsk);
+                Order splittedOrder = order;
+                splittedOrder.Amount = splittedAmount;
+                bestOrders.Add(splittedOrder);
                 break;
             }
         }
 
-        return bestAsks;
+        return bestOrders;
     }
 }
