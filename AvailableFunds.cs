@@ -2,6 +2,6 @@
 
 public class AvailableFunds
 {
-    public double Crypto { get; set; }
-    public double Euro { get; set; }
+    public decimal Crypto { get; set; }
+    public decimal Euro { get; set; }
 }
