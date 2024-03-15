@@ -1,0 +1,6 @@
+@GetBestPossibleOrders_HostAddress = http://localhost:5105
+
+GET {{GetBestPossibleOrders_HostAddress}}/cryptoexchange/
+Accept: application/json
+
+###
