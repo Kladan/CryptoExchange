@@ -4,12 +4,6 @@ namespace GetBestPossibleOrders;
 
 internal class OrderService
 {
-    enum OrderType
-    {
-        Buy,
-        Sell
-    }
-
     public static string GetBestPossibleOrders(string[] args)
     {
         string orderType = args[0];
@@ -22,7 +16,7 @@ internal class OrderService
         if (!ReadExchangesFromFiles(files, exchanges)) return "";
 
         List<Order> result = new List<Order>();
-        if (Enum.TryParse(orderType, out OrderType type))
+        if (Enum.TryParse(orderType, out Order.OrderType type))
         {
             result = GetBestOrdersFromBestExchange(exchanges, goalAmount, type);
         }
@@ -35,13 +29,13 @@ internal class OrderService
     {
         if (type != "Buy" && type != "Sell")
         {
-            Console.WriteLine("Type in an order type ...");
+            Console.WriteLine("Type in the order type 'Buy' or 'Sell'.");
             return false;
         }
 
-        if (goal == 0)
+        if (goal < 0)
         {
-            Console.WriteLine("Type in an amount not 0 ...");
+            Console.WriteLine("Type in a positive amount of BTC.");
             return false;
         }
 
@@ -49,6 +43,15 @@ internal class OrderService
         {
             Console.WriteLine("Type in file paths to your order books ...");
             return false;
+        }
+
+        foreach (string file in fileList)
+        {
+            if (!File.Exists(file))
+            {
+                Console.WriteLine($"The following file doesn't exist: {file}");
+                return false;
+            }
         }
 
         return true;
@@ -75,7 +78,7 @@ internal class OrderService
     }
 
     private static List<Order> GetBestOrdersFromBestExchange(List<Exchange> exchanges,
-        decimal goalAmount, OrderType orderType)
+        decimal goalAmount, Order.OrderType orderType)
     {
         List<Order> result = new List<Order>();
 
@@ -83,13 +86,13 @@ internal class OrderService
         {
             decimal fund = 0;
             List<Order> exchangeOrders = new List<Order>();
-            if (orderType == OrderType.Buy)
+            if (orderType == Order.OrderType.Buy)
             {
                 fund = exchange.AvailableFunds.Crypto;
                 exchangeOrders = exchange.OrderBook.Asks.ConvertAll(a => a.Order);
                 exchangeOrders.Sort((a, b) => a.Price < b.Price ? -1 : a.Price == b.Price ? 0 : 1);
             }
-            else if (orderType == OrderType.Sell)
+            else if (orderType == Order.OrderType.Sell)
             {
                 fund = exchange.AvailableFunds.Euro;
                 exchangeOrders = exchange.OrderBook.Bids.ConvertAll((b => b.Order));
@@ -103,8 +106,8 @@ internal class OrderService
             decimal bestResultSumBtc = result.Sum(a => a.Amount);
 
             if (result.Count == 0 ||
-                (orderType == OrderType.Buy && exchangeSumEur < bestResultSumEur ||
-                 orderType == OrderType.Sell && exchangeSumEur > bestResultSumEur) &&
+                (orderType == Order.OrderType.Buy && exchangeSumEur < bestResultSumEur ||
+                 orderType == Order.OrderType.Sell && exchangeSumEur > bestResultSumEur) &&
                 exchangeSumBtc >= bestResultSumBtc)
             {
                 result = bestExchangeOrders;
@@ -115,7 +118,7 @@ internal class OrderService
     }
 
     private static List<Order> GetBestOrdersFromList(List<Order> orders, decimal goalAmount,
-        decimal availableFund, OrderType orderType)
+        decimal availableFund, Order.OrderType orderType)
     {
         List<Order> bestOrders = new List<Order>();
         decimal reachedBtc = 0;
@@ -130,9 +133,9 @@ internal class OrderService
             reachedEur += order.Amount * order.Price;
 
             bool isRequestedAmountHit = reachedBtc + order.Amount == goalAmount;
-            bool isBuyableFundHit = orderType == OrderType.Buy && reachedBtc + order.Amount == availableFund;
+            bool isBuyableFundHit = orderType == Order.OrderType.Buy && reachedBtc + order.Amount == availableFund;
             bool isSellableFundHit =
-                orderType == OrderType.Sell && reachedEur + order.Amount * order.Price == availableFund;
+                orderType == Order.OrderType.Sell && reachedEur + order.Amount * order.Price == availableFund;
 
             if (isRequestedAmountHit || isBuyableFundHit || isSellableFundHit)
             {
@@ -145,7 +148,7 @@ internal class OrderService
         return bestOrders;
     }
 
-    private static bool PrepareOrder(Order order, decimal goalAmount, decimal availableFund, OrderType orderType,
+    private static bool PrepareOrder(Order order, decimal goalAmount, decimal availableFund, Order.OrderType orderType,
         decimal reachedBtc, decimal reachedEur)
     {
         bool isLastOrder = false;
@@ -158,7 +161,7 @@ internal class OrderService
             isLastOrder = true;
         }
         
-        bool wouldOverrunBuyableFund = orderType == OrderType.Buy && reachedBtc + order.Amount > availableFund;
+        bool wouldOverrunBuyableFund = orderType == Order.OrderType.Buy && reachedBtc + order.Amount > availableFund;
         if (wouldOverrunBuyableFund)
         {
             decimal restAmount = availableFund - reachedBtc;
@@ -166,7 +169,7 @@ internal class OrderService
             isLastOrder = true;
         }
 
-        bool wouldOverrunSellableFund = orderType == OrderType.Sell &&
+        bool wouldOverrunSellableFund = orderType == Order.OrderType.Sell &&
                                         reachedEur + order.Amount * order.Price > availableFund;
         if (wouldOverrunSellableFund)
         {

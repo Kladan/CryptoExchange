@@ -2,6 +2,12 @@
 {
     public class Order
     {
+        public enum OrderType
+        {
+            Buy,
+            Sell
+        }
+        
         public Guid Id { get; set; }
         public DateTime Time { get; set; }
         public string Type { get; set; }
